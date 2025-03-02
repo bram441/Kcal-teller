@@ -3,8 +3,11 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const morgan = require('morgan');
 const { connectDB } = require('./config/db');
-const itemRoutes = require('./routes/itemRoutes');
-const errorHandler = require('./middlewares/errorMiddleware');
+const errorHandler = require('./middleware/errorMiddleware');
+const userRoutes = require('./routes/userRoutes');
+const foodRoutes = require('./routes/foodRoutes');
+const dailyEntryRoutes = require('./routes/dailyEntryRoutes');
+
 
 dotenv.config();
 connectDB();
@@ -17,7 +20,9 @@ app.use(cors());
 app.use(morgan('dev'));
 
 // Routes
-app.use('/api/items', itemRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/foods', foodRoutes);
+app.use('/api/daily-entries', dailyEntryRoutes);
 
 // Error Handling Middleware
 app.use(errorHandler);
