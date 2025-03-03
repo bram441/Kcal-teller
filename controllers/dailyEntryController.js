@@ -1,7 +1,7 @@
 const asyncHandler = require("../utils/asyncHandler");
 const DailyEntry = require("../models/DailyEntry");
 const Food = require("../models/Food");
-const { Sequelize } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 
 // @desc Get daily calorie intake for user
 // @route GET /api/daily-entries
@@ -12,7 +12,7 @@ const getDailyEntries = asyncHandler(async (req, res) => {
   const entries = await DailyEntry.findAll({
     where: { user_id, date: new Date() },
     include: [{ model: Food, attributes: ["name", "unit"] }], // Get food name
-    attributes: ["food_id", "total_kcal", "amount"],
+    attributes: ["food_id", "total_kcal", "amount", "createdAt"],
   });
 
   // Group entries by food_id
@@ -39,7 +39,11 @@ const getDailyEntries = asyncHandler(async (req, res) => {
     0
   );
 
-  res.json({ totalCalories, entries: groupedEntries });
+  res.json({
+    totalCalories,
+    entries: groupedEntries,
+    entriesSeperate: entries,
+  });
 });
 
 // @desc Log food consumption
@@ -57,4 +61,22 @@ const logDailyEntry = asyncHandler(async (req, res) => {
   res.status(201).json(entry);
 });
 
-module.exports = { getDailyEntries, logDailyEntry };
+const getWeeklyEntries = asyncHandler(async (req, res) => {
+  const user_id = req.user.id;
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+  const weeklyData = await DailyEntry.findAll({
+    where: { user_id, date: { [Op.gte]: oneWeekAgo } },
+    attributes: [
+      "date",
+      [Sequelize.fn("SUM", Sequelize.col("total_kcal")), "totalCalories"],
+    ],
+    group: ["date"],
+    order: [["date", "ASC"]],
+  });
+
+  res.json(weeklyData);
+});
+
+module.exports = { getDailyEntries, logDailyEntry, getWeeklyEntries };
