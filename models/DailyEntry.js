@@ -1,39 +1,33 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/db');
-const User = require('./User');
-const Food = require('./Food');
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/db");
 
-const DailyEntry = sequelize.define('DailyEntry', {
+const DailyEntry = sequelize.define(
+  "DailyEntry",
+  {
     id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
     },
     user_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: User,
-            key: 'id'
-        }
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
     food_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: Food,
-            key: 'id'
-        }
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
     date: {
-        type: DataTypes.DATEONLY,
-        allowNull: false,
-        defaultValue: DataTypes.NOW
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
     },
     total_kcal: {
-        type: DataTypes.FLOAT,
-        allowNull: false
-    }
-}, { timestamps: true });
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
+  },
+  { timestamps: true }
+);
 
 module.exports = DailyEntry;
