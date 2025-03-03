@@ -26,6 +26,11 @@ const DailyEntry = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    amount: {
+      type: DataTypes.INTEGER, // New field for portion tracking
+      allowNull: false,
+      defaultValue: 1,
+    },
   },
   { timestamps: true }
 );

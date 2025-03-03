@@ -28,6 +28,20 @@ const Food = sequelize.define(
     brand: {
       type: DataTypes.STRING,
     },
+    unit: {
+      type: DataTypes.ENUM("gr", "ml"), // New field: Measurement unit
+      allowNull: false,
+      defaultValue: "gr",
+    },
+    portion_description: {
+      type: DataTypes.STRING, // New field: Describe portion size
+      allowNull: true,
+    },
+    tags: {
+      type: DataTypes.ARRAY(DataTypes.STRING), // New field: Tags for filtering
+      allowNull: true,
+      defaultValue: [],
+    },
   },
   { timestamps: true }
 );
