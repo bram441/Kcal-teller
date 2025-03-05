@@ -12,7 +12,7 @@ const getDailyEntries = asyncHandler(async (req, res) => {
   const entries = await DailyEntry.findAll({
     where: { user_id, date: new Date() },
     include: [{ model: Food, attributes: ["name", "unit"] }], // Get food name
-    attributes: ["food_id", "total_kcal", "amount", "createdAt"],
+    attributes: ["id", "food_id", "total_kcal", "amount", "createdAt"],
   });
 
   // Group entries by food_id
@@ -79,4 +79,21 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
   res.json(weeklyData);
 });
 
-module.exports = { getDailyEntries, logDailyEntry, getWeeklyEntries };
+const removeDailyEntry = asyncHandler(async (req, res) => {
+  console.log("removeDailyEntry:" + req.params.id);
+  const user_id = req.user.id;
+  const { id } = req.params;
+
+  const entry = await DailyEntry.destroy({
+    where: { user_id, id },
+  });
+
+  res.json(entry);
+});
+
+module.exports = {
+  getDailyEntries,
+  logDailyEntry,
+  getWeeklyEntries,
+  removeDailyEntry,
+};
