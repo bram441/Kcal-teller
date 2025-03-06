@@ -11,7 +11,7 @@ const protect = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.id }; // Attach user ID
+    req.user = { id: decoded.id, role: decoded.role }; // Attach user ID
     next();
   } catch (error) {
     console.error("JWT Verification Error:", error);
@@ -19,4 +19,13 @@ const protect = (req, res, next) => {
   }
 };
 
-module.exports = protect;
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === "admin") {
+    next();
+  } else {
+    res.status(403);
+    throw new Error("Not authorized as an admin");
+  }
+};
+
+module.exports = { protect, admin };
