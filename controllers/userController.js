@@ -43,6 +43,7 @@ const loginUser = asyncHandler(async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: "30d" }
       ),
+      kcal_goal: user.kcal_goal,
     });
   } else {
     res.status(401);
