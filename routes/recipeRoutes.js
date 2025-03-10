@@ -8,7 +8,7 @@ const {
   updateRecipe,
   updateRecipeUserIds,
 } = require("../controllers/recipeController");
-const { protect, admin } = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 

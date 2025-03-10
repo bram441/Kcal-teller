@@ -1,11 +1,24 @@
 const asyncHandler = require("../utils/asyncHandler");
 const Recipe = require("../models/Recipe");
+const Food = require("../models/Food");
+const RecipeFood = require("../models/RecipeFood");
 const { Op } = require("sequelize");
 
 // @desc Get all recipes
 // @route GET /api/recipes
 const getRecipes = asyncHandler(async (req, res) => {
-  const recipes = await Recipe.findAll();
+  const recipes = await Recipe.findAll({
+    include: [
+      {
+        model: Food,
+        as: "foods",
+        attributes: ["id", "name"],
+        through: {
+          attributes: ["quantity"],
+        },
+      },
+    ],
+  });
   res.json(recipes);
 });
 
@@ -16,6 +29,16 @@ const getRecipeByUserId = asyncHandler(async (req, res) => {
     where: {
       user_id: req.user.id, // Extract user ID from token
     },
+    include: [
+      {
+        model: Food,
+        as: "foods",
+        attributes: ["id", "name"],
+        through: {
+          attributes: ["quantity"],
+        },
+      },
+    ],
   });
   res.json(recipes);
 });
@@ -29,6 +52,16 @@ const getSharedRecipes = asyncHandler(async (req, res) => {
         [Op.contains]: [req.user.id], // Check if user_ids array contains the user ID
       },
     },
+    include: [
+      {
+        model: Food,
+        as: "foods",
+        attributes: ["id", "name"],
+        through: {
+          attributes: ["quantity"],
+        },
+      },
+    ],
   });
   res.json(recipes);
 });
@@ -43,6 +76,16 @@ const getAllUserRecipes = asyncHandler(async (req, res) => {
         { user_ids: { [Op.contains]: [req.user.id] } }, // Recipes shared with the user
       ],
     },
+    include: [
+      {
+        model: Food,
+        as: "foods",
+        attributes: ["id", "name"],
+        through: {
+          attributes: ["quantity"],
+        },
+      },
+    ],
   });
   res.json(recipes);
 });
@@ -50,17 +93,24 @@ const getAllUserRecipes = asyncHandler(async (req, res) => {
 // @desc Create a recipe
 // @route POST /api/recipes
 const createRecipe = asyncHandler(async (req, res) => {
-  const { name, food_ids, food_quantities, total_kcals, user_ids } = req.body;
+  const { name, food_quantities, total_kcals, user_ids } = req.body;
   const user_id = req.user.id; // Extract user ID from token
 
   const recipe = await Recipe.create({
     name,
-    food_ids,
-    food_quantities,
     total_kcals,
     user_id,
     user_ids,
   });
+
+  // Add food quantities to the RecipeFood join table
+  for (const [food_id, quantity] of Object.entries(food_quantities)) {
+    await RecipeFood.create({
+      recipe_id: recipe.id,
+      food_id: parseInt(food_id),
+      quantity,
+    });
+  }
 
   res.status(201).json(recipe);
 });
@@ -68,7 +118,7 @@ const createRecipe = asyncHandler(async (req, res) => {
 // @desc Update a recipe
 // @route PUT /api/recipes/:id
 const updateRecipe = asyncHandler(async (req, res) => {
-  const { name, food_ids, food_quantities, total_kcals } = req.body;
+  const { name, food_quantities, total_kcals } = req.body;
   const recipe = await Recipe.findByPk(req.params.id);
 
   if (!recipe) {
@@ -82,11 +132,20 @@ const updateRecipe = asyncHandler(async (req, res) => {
   }
 
   recipe.name = name || recipe.name;
-  recipe.food_ids = food_ids || recipe.food_ids;
-  recipe.food_quantities = food_quantities || recipe.food_quantities;
   recipe.total_kcals = total_kcals || recipe.total_kcals;
 
   await recipe.save();
+
+  // Update food quantities in the RecipeFood join table
+  await RecipeFood.destroy({ where: { recipe_id: recipe.id } });
+  for (const [food_id, quantity] of Object.entries(food_quantities)) {
+    await RecipeFood.create({
+      recipe_id: recipe.id,
+      food_id: parseInt(food_id),
+      quantity,
+    });
+  }
+
   res.json(recipe);
 });
 

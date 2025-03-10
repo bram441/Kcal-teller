@@ -13,15 +13,6 @@ const Recipe = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    food_ids: {
-      type: DataTypes.ARRAY(DataTypes.INTEGER),
-      allowNull: false,
-    },
-    food_quantities: {
-      type: DataTypes.JSON,
-      allowNull: false,
-      // Example: { "food_id_1": quantity, "food_id_2": quantity, ... }
-    },
     total_kcals: {
       type: DataTypes.INTEGER,
       allowNull: false,
