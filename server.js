@@ -8,6 +8,7 @@ const errorHandler = require("./middleware/errorMiddleware");
 const userRoutes = require("./routes/userRoutes");
 const foodRoutes = require("./routes/foodRoutes");
 const dailyEntryRoutes = require("./routes/dailyEntryRoutes");
+const recipeRoutes = require("./routes/recipeRoutes");
 
 dotenv.config();
 connectDB();
@@ -23,6 +24,7 @@ app.use(morgan("dev"));
 app.use("/api/users", userRoutes);
 app.use("/api/foods", foodRoutes);
 app.use("/api/daily-entries", dailyEntryRoutes);
+app.use("/api/recipes", recipeRoutes);
 
 // Error Handling Middleware
 app.use(errorHandler);
