@@ -8,8 +8,10 @@ const RecipeFood = require("./RecipeFood");
 // Define Associations
 User.hasMany(DailyEntry, { foreignKey: "user_id" });
 Food.hasMany(DailyEntry, { foreignKey: "food_id" });
+Recipe.hasMany(DailyEntry, { foreignKey: "recipe_id" });
 DailyEntry.belongsTo(User, { foreignKey: "user_id" });
 DailyEntry.belongsTo(Food, { foreignKey: "food_id" });
+DailyEntry.belongsTo(Recipe, { foreignKey: "recipe_id" });
 
 User.hasMany(Recipe, { foreignKey: "user_id" });
 Recipe.belongsTo(User, { foreignKey: "user_id" });

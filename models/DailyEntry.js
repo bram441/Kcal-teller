@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../config/db");
+const Recipe = require("./Recipe");
 
 const DailyEntry = sequelize.define(
   "DailyEntry",
@@ -15,7 +16,11 @@ const DailyEntry = sequelize.define(
     },
     food_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
+    },
+    recipe_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
     date: {
       type: DataTypes.DATEONLY,
@@ -30,6 +35,11 @@ const DailyEntry = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
       defaultValue: 1,
+    },
+    entry_type: {
+      type: DataTypes.ENUM("food", "recipe"),
+      allowNull: false,
+      defaultValue: "food",
     },
   },
   { timestamps: true }
