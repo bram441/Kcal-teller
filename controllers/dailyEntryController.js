@@ -37,12 +37,21 @@ const getDailyEntries = asyncHandler(async (req, res) => {
 
   // Group entries by food_id or recipe_id
   const groupedEntries = entries.reduce((acc, entry) => {
-    const existingEntry = acc.find(
-      (item) =>
-        (item.food_id === entry.food_id ||
-          item.recipe_id === entry.recipe_id) &&
-        item.entry_type === entry.entry_type
-    );
+    const existingEntry = acc.find((item) => {
+      if (item.entry_type !== entry.entry_type) {
+        return false; // Ensure the entry types match
+      }
+
+      if (entry.entry_type === "food") {
+        return item.food_id === entry.food_id; // Compare food_id for food entries
+      }
+
+      if (entry.entry_type === "recipe") {
+        return item.recipe_id === entry.recipe_id; // Compare recipe_id for recipe entries
+      }
+
+      return false; // Default case (shouldn't happen)
+    });
     if (existingEntry) {
       existingEntry.total_kcal += entry.total_kcal;
       existingEntry.amount += entry.amount;
