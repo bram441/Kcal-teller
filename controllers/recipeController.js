@@ -22,6 +22,22 @@ const getRecipes = asyncHandler(async (req, res) => {
   res.json(recipes);
 });
 
+const getRecipeById = asyncHandler(async (req, res) => {
+  const recipe = await Recipe.findByPk(req.params.id, {
+    include: [
+      {
+        model: Food,
+        as: "foods",
+        attributes: ["id", "name", "kcal_per_100", "kcal_per_portion"],
+        through: {
+          attributes: ["quantity"],
+        },
+      },
+    ],
+  });
+  res.json(recipe);
+});
+
 // @desc Get all recipes for a user
 // @route GET /api/recipes/user
 const getRecipeByUserId = asyncHandler(async (req, res) => {
@@ -138,10 +154,12 @@ const updateRecipe = asyncHandler(async (req, res) => {
 
   // Update food quantities in the RecipeFood join table
   await RecipeFood.destroy({ where: { recipe_id: recipe.id } });
-  for (const [food_id, quantity] of Object.entries(food_quantities)) {
+
+  for (const food of food_quantities) {
+    const { food_id, quantity } = food; // Destructure food_id and quantity
     await RecipeFood.create({
       recipe_id: recipe.id,
-      food_id: parseInt(food_id),
+      food_id: parseInt(food_id), // Ensure food_id is an integer
       quantity,
     });
   }
@@ -166,12 +184,21 @@ const updateRecipeUserIds = asyncHandler(async (req, res) => {
   res.json(recipe);
 });
 
+const deleteRecipeById = asyncHandler(async (req, res) => {
+  const recipe = await Recipe.findByPk(req.params.id);
+  await RecipeFood.destroy({ where: { recipe_id: recipe.id } });
+  await recipe.destroy();
+  res.json({ message: "Recipe deleted" });
+});
+
 module.exports = {
   getRecipes,
+  getRecipeById,
   getRecipeByUserId,
   getSharedRecipes,
   getAllUserRecipes,
   createRecipe,
   updateRecipe,
   updateRecipeUserIds,
+  deleteRecipeById,
 };
