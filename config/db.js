@@ -9,6 +9,7 @@ const sequelize = new Sequelize(
   isDevelopment ? process.env.LOCAL_DB_PASSWORD : process.env.DB_PASSWORD,
   {
     host: isDevelopment ? process.env.LOCAL_DB_HOST : process.env.DB_HOST,
+    port: isDevelopment ? process.env.LOCAL_DB_PORT : process.env.DB_PORT,
     dialect: isDevelopment
       ? process.env.LOCAL_DB_DIALECT
       : process.env.DB_DIALECT,
