@@ -36,4 +36,34 @@ const createFood = asyncHandler(async (req, res) => {
   res.status(201).json(food);
 });
 
-module.exports = { getFoods, createFood };
+// @desc Update a food item
+// @route PUT /api/foods/:id
+const updateFood = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const food = await Food.findByPk(id);
+
+  if (!food) {
+    res.status(404);
+    throw new Error("Food not found");
+  }
+
+  const updatedFood = await food.update(req.body);
+  res.json(updatedFood);
+});
+
+// @desc Delete a food item
+// @route DELETE /api/foods/:id
+const deleteFood = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const food = await Food.findByPk(id);
+
+  if (!food) {
+    res.status(404);
+    throw new Error("Food not found");
+  }
+
+  await food.destroy();
+  res.json({ message: "Food deleted" });
+});
+
+module.exports = { getFoods, createFood, updateFood, deleteFood };
