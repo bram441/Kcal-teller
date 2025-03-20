@@ -21,19 +21,27 @@ const createFood = asyncHandler(async (req, res) => {
     portion_description,
     tags,
   } = req.body;
+  try {
+    const formattedTags = Array.isArray(tags)
+      ? tags.map((tag) => tag.trim())
+      : []; // ✅ Ensure it's an array
 
-  const food = await Food.create({
-    name,
-    type,
-    kcal_per_100,
-    kcal_per_portion,
-    brand,
-    unit,
-    portion_description,
-    tags,
-  });
+    const newFood = await Food.create({
+      name,
+      type,
+      kcal_per_100,
+      kcal_per_portion,
+      brand,
+      unit,
+      portion_description,
+      tags: formattedTags, // ✅ Save correctly formatted tags
+    });
 
-  res.status(201).json(food);
+    res.status(201).json(newFood);
+  } catch (error) {
+    console.error("Error adding food:", error);
+    res.status(500).json({ message: "Server error while adding food." });
+  }
 });
 
 // @desc Update a food item
