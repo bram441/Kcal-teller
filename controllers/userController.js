@@ -151,5 +151,42 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   res.json({ message: "Password reset successful" });
 });
+// @desc Update user profile
+// @route PUT /api/users/profile
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findByPk(req.user.id);
 
-module.exports = { registerUser, loginUser, forgotPassword, resetPassword };
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const { username, email, password, kcal_goal } = req.body;
+
+  // Update fields if provided
+  if (username) user.username = username;
+  if (email) user.email = email;
+  if (kcal_goal) user.kcal_goal = kcal_goal;
+
+  if (password) {
+    const salt = await bcrypt.genSalt(10);
+    user.password_hash = await bcrypt.hash(password, salt);
+  }
+
+  await user.save();
+
+  res.json({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    kcal_goal: user.kcal_goal,
+  });
+});
+
+module.exports = {
+  registerUser,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  updateUserProfile,
+};
