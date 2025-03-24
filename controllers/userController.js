@@ -91,7 +91,28 @@ const forgotPassword = asyncHandler(async (req, res) => {
     from: process.env.EMAIL_USER,
     to: user.email,
     subject: "Password Reset Request",
-    html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to reset your password. This link will expire in 1 hour.</p>`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #f9f9f9;">
+        <h2 style="text-align: center; color: #333;">Password Reset Request</h2>
+        <p style="font-size: 16px; color: #555;">
+          Hello <strong>${user.username}</strong>,
+        </p>
+        <p style="font-size: 16px; color: #555;">
+          You requested a password reset. Click the button below to reset your password. This link will expire in 1 hour.
+        </p>
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; font-size: 16px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px;">
+            Reset Password
+          </a>
+        </div>
+        <p style="font-size: 14px; color: #999; text-align: center;">
+          If you did not request this, please ignore this email.
+        </p>
+        <p style="font-size: 14px; color: #999; text-align: center;">
+          &copy; ${new Date().getFullYear()} Kcal Teller
+        </p>
+      </div>
+    `,
   };
 
   await transporter.sendMail(mailOptions);
