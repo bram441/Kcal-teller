@@ -2,6 +2,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const User = require("../models/User");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
+const { Op } = require("sequelize");
 
 // @desc Register new user
 // @route POST /api/users/register
@@ -51,4 +54,81 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { registerUser, loginUser };
+// @desc Request password reset
+// @route POST /api/users/forgot-password
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ where: { email } });
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Generate a reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenHash = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // Save the hashed token and expiration in the database
+  user.reset_token = resetTokenHash;
+  user.reset_token_expiration = Date.now() + 3600000; // 1 hour
+  await user.save();
+
+  // Send the reset email
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+  const transporter = nodemailer.createTransport({
+    service: "Gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: user.email,
+    subject: "Password Reset Request",
+    html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to reset your password. This link will expire in 1 hour.</p>`,
+  };
+
+  await transporter.sendMail(mailOptions);
+
+  res.json({ message: "Password reset email sent" });
+});
+
+// @desc Reset password
+// @route POST /api/users/reset-password/:token
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    where: {
+      reset_token: hashedToken,
+      reset_token_expiration: { [Op.gt]: Date.now() }, // Ensure token is not expired
+    },
+  });
+
+  if (!user) {
+    res.status(400);
+    throw new Error("Invalid or expired token");
+  }
+
+  // Hash the new password
+  const salt = await bcrypt.genSalt(10);
+  user.password_hash = await bcrypt.hash(password, salt);
+
+  // Clear the reset token and expiration
+  user.reset_token = null;
+  user.reset_token_expiration = null;
+  await user.save();
+
+  res.json({ message: "Password reset successful" });
+});
+
+module.exports = { registerUser, loginUser, forgotPassword, resetPassword };
