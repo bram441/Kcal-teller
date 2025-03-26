@@ -25,6 +25,22 @@ const Food = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    grams_per_portion: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    proteine_per_100: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    fats_per_100: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    sugar_per_100: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
     brand: {
       type: DataTypes.STRING,
     },

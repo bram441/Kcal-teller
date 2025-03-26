@@ -109,12 +109,23 @@ const getAllUserRecipes = asyncHandler(async (req, res) => {
 // @desc Create a recipe
 // @route POST /api/recipes
 const createRecipe = asyncHandler(async (req, res) => {
-  const { name, food_quantities, total_kcals, user_ids } = req.body;
+  const {
+    name,
+    food_quantities,
+    total_kcals,
+    total_proteine,
+    total_fats,
+    total_sugar,
+    user_ids,
+  } = req.body;
   const user_id = req.user.id; // Extract user ID from token
 
   const recipe = await Recipe.create({
     name,
     total_kcals,
+    total_proteine,
+    total_fats,
+    total_sugar,
     user_id,
     user_ids,
   });
@@ -134,7 +145,14 @@ const createRecipe = asyncHandler(async (req, res) => {
 // @desc Update a recipe
 // @route PUT /api/recipes/:id
 const updateRecipe = asyncHandler(async (req, res) => {
-  const { name, food_quantities, total_kcals } = req.body;
+  const {
+    name,
+    food_quantities,
+    total_kcals,
+    total_proteine,
+    total_fats,
+    total_sugar,
+  } = req.body;
   const recipe = await Recipe.findByPk(req.params.id);
 
   if (!recipe) {
@@ -149,6 +167,9 @@ const updateRecipe = asyncHandler(async (req, res) => {
 
   recipe.name = name || recipe.name;
   recipe.total_kcals = total_kcals || recipe.total_kcals;
+  recipe.total_proteine = total_proteine || recipe.total_proteine;
+  recipe.total_fats = total_fats || recipe.total_fats;
+  recipe.total_sugar = total_sugar || recipe.total_sugar;
 
   await recipe.save();
 
