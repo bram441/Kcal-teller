@@ -17,6 +17,18 @@ const Recipe = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    total_proteins: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    total_fats: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    total_sugars: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,

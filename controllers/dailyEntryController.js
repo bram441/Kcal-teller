@@ -29,6 +29,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
       "food_id",
       "recipe_id",
       "total_kcal",
+      "total_proteins",
+      "total_fats",
+      "total_sugars",
       "amount",
       "entry_type",
       "createdAt",
@@ -54,6 +57,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
     });
     if (existingEntry) {
       existingEntry.total_kcal += entry.total_kcal;
+      existingEntry.total_proteins += entry.total_proteins;
+      existingEntry.total_fats += entry.total_fats;
+      existingEntry.total_sugars += entry.total_sugars;
       existingEntry.amount += entry.amount;
     } else {
       acc.push({
@@ -65,6 +71,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
             : entry.Recipe?.name || "Unknown Recipe",
         unit: entry.entry_type === "food" ? entry.Food?.unit || "N/A" : null,
         total_kcal: entry.total_kcal,
+        total_proteins: entry.total_proteins,
+        total_fats: entry.total_fats,
+        total_sugars: entry.total_sugars,
         amount: entry.amount,
         entry_type: entry.entry_type,
       });
@@ -78,8 +87,24 @@ const getDailyEntries = asyncHandler(async (req, res) => {
     0
   );
 
+  const totalProteins = groupedEntries.reduce(
+    (sum, entry) => sum + entry.total_proteins,
+    0
+  );
+  const totalFats = groupedEntries.reduce(
+    (sum, entry) => sum + entry.total_fats,
+    0
+  );
+  const totalSugars = groupedEntries.reduce(
+    (sum, entry) => sum + entry.total_sugars,
+    0
+  );
+
   res.json({
     totalCalories,
+    totalProteins,
+    totalFats,
+    totalSugars,
     entries: groupedEntries,
     entriesSeperate: entries,
   });
@@ -89,13 +114,25 @@ const getDailyEntries = asyncHandler(async (req, res) => {
 // @route POST /api/daily-entries
 const logDailyEntry = asyncHandler(async (req, res) => {
   const user_id = req.user.id; // Extract user ID from token
-  const { food_id, recipe_id, total_kcal, amount, entry_type } = req.body;
+  const {
+    food_id,
+    recipe_id,
+    total_kcal,
+    total_proteins,
+    total_fats,
+    total_sugars,
+    amount,
+    entry_type,
+  } = req.body;
 
   const entry = await DailyEntry.create({
     user_id,
     food_id,
     recipe_id,
     total_kcal,
+    total_proteins,
+    total_fats,
+    total_sugars,
     amount,
     entry_type,
   });
@@ -112,6 +149,9 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     attributes: [
       "date",
       [Sequelize.fn("SUM", Sequelize.col("total_kcal")), "totalCalories"],
+      [Sequelize.fn("SUM", Sequelize.col("total_proteins")), "totalProteins"],
+      [Sequelize.fn("SUM", Sequelize.col("total_fats")), "totalFats"],
+      [Sequelize.fn("SUM", Sequelize.col("total_sugars")), "totalSugars"],
     ],
     group: ["date"],
     order: [["date", "ASC"]],
@@ -121,7 +161,6 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
 });
 
 const removeDailyEntry = asyncHandler(async (req, res) => {
-  console.log("removeDailyEntry:" + req.params.id);
   const user_id = req.user.id;
   const { id } = req.params;
 
