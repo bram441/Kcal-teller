@@ -28,7 +28,15 @@ const getRecipeById = asyncHandler(async (req, res) => {
       {
         model: Food,
         as: "foods",
-        attributes: ["id", "name", "kcal_per_100", "kcal_per_portion"],
+        attributes: [
+          "id",
+          "name",
+          "kcal_per_100",
+          "kcal_per_portion",
+          "proteine_per_100",
+          "fats_per_100",
+          "sugar_per_100",
+        ],
         through: {
           attributes: ["quantity"],
         },
@@ -149,9 +157,9 @@ const updateRecipe = asyncHandler(async (req, res) => {
     name,
     food_quantities,
     total_kcals,
-    total_proteine,
+    total_proteins,
     total_fats,
-    total_sugar,
+    total_sugars,
   } = req.body;
   const recipe = await Recipe.findByPk(req.params.id);
 
@@ -167,9 +175,9 @@ const updateRecipe = asyncHandler(async (req, res) => {
 
   recipe.name = name || recipe.name;
   recipe.total_kcals = total_kcals || recipe.total_kcals;
-  recipe.total_proteine = total_proteine || recipe.total_proteine;
+  recipe.total_proteins = total_proteins || recipe.total_proteins;
   recipe.total_fats = total_fats || recipe.total_fats;
-  recipe.total_sugar = total_sugar || recipe.total_sugar;
+  recipe.total_sugars = total_sugars || recipe.total_sugars;
 
   await recipe.save();
 
