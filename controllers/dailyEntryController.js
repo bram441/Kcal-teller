@@ -29,9 +29,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
       "food_id",
       "recipe_id",
       "total_kcal",
-      "total_proteine",
+      "total_proteins",
       "total_fats",
-      "total_sugar",
+      "total_sugars",
       "amount",
       "entry_type",
       "createdAt",
@@ -57,9 +57,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
     });
     if (existingEntry) {
       existingEntry.total_kcal += entry.total_kcal;
-      existingEntry.total_proteine += entry.total_proteine;
+      existingEntry.total_proteins += entry.total_proteins;
       existingEntry.total_fats += entry.total_fats;
-      existingEntry.total_sugar += entry.total_sugar;
+      existingEntry.total_sugars += entry.total_sugars;
       existingEntry.amount += entry.amount;
     } else {
       acc.push({
@@ -71,9 +71,9 @@ const getDailyEntries = asyncHandler(async (req, res) => {
             : entry.Recipe?.name || "Unknown Recipe",
         unit: entry.entry_type === "food" ? entry.Food?.unit || "N/A" : null,
         total_kcal: entry.total_kcal,
-        total_proteine: entry.total_proteine,
+        total_proteins: entry.total_proteins,
         total_fats: entry.total_fats,
-        total_sugar: entry.total_sugar,
+        total_sugars: entry.total_sugars,
         amount: entry.amount,
         entry_type: entry.entry_type,
       });
@@ -87,24 +87,24 @@ const getDailyEntries = asyncHandler(async (req, res) => {
     0
   );
 
-  const totalProteine = groupedEntries.reduce(
-    (sum, entry) => sum + entry.total_proteine,
+  const totalProteins = groupedEntries.reduce(
+    (sum, entry) => sum + entry.total_proteins,
     0
   );
   const totalFats = groupedEntries.reduce(
     (sum, entry) => sum + entry.total_fats,
     0
   );
-  const totalSugar = groupedEntries.reduce(
-    (sum, entry) => sum + entry.total_sugar,
+  const totalSugars = groupedEntries.reduce(
+    (sum, entry) => sum + entry.total_sugars,
     0
   );
 
   res.json({
     totalCalories,
-    totalProteine,
+    totalProteins,
     totalFats,
-    totalSugar,
+    totalSugars,
     entries: groupedEntries,
     entriesSeperate: entries,
   });
@@ -118,9 +118,9 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     food_id,
     recipe_id,
     total_kcal,
-    total_proteine,
+    total_proteins,
     total_fats,
-    total_sugar,
+    total_sugars,
     amount,
     entry_type,
   } = req.body;
@@ -130,9 +130,9 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     food_id,
     recipe_id,
     total_kcal,
-    total_proteine,
+    total_proteins,
     total_fats,
-    total_sugar,
+    total_sugars,
     amount,
     entry_type,
   });
@@ -149,9 +149,9 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     attributes: [
       "date",
       [Sequelize.fn("SUM", Sequelize.col("total_kcal")), "totalCalories"],
-      [Sequelize.fn("SUM", Sequelize.col("total_proteine")), "totalProteine"],
+      [Sequelize.fn("SUM", Sequelize.col("total_proteins")), "totalProteins"],
       [Sequelize.fn("SUM", Sequelize.col("total_fats")), "totalFats"],
-      [Sequelize.fn("SUM", Sequelize.col("total_sugar")), "totalSugar"],
+      [Sequelize.fn("SUM", Sequelize.col("total_sugars")), "totalSugars"],
     ],
     group: ["date"],
     order: [["date", "ASC"]],

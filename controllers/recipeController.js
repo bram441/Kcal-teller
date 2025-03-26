@@ -113,9 +113,9 @@ const createRecipe = asyncHandler(async (req, res) => {
     name,
     food_quantities,
     total_kcals,
-    total_proteine,
+    total_proteins,
     total_fats,
-    total_sugar,
+    total_sugars,
     user_ids,
   } = req.body;
   const user_id = req.user.id; // Extract user ID from token
@@ -123,9 +123,9 @@ const createRecipe = asyncHandler(async (req, res) => {
   const recipe = await Recipe.create({
     name,
     total_kcals,
-    total_proteine,
+    total_proteins,
     total_fats,
-    total_sugar,
+    total_sugars,
     user_id,
     user_ids,
   });

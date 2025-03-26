@@ -31,7 +31,7 @@ const DailyEntry = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
-    total_proteine: {
+    total_proteins: {
       type: DataTypes.FLOAT,
       allowNull: true,
     },
@@ -39,7 +39,7 @@ const DailyEntry = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: true,
     },
-    total_sugar: {
+    total_sugars: {
       type: DataTypes.FLOAT,
       allowNull: true,
     },
