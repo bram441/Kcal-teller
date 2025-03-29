@@ -2,6 +2,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const Food = require("../models/Food");
 const DailyEntry = require("../models/DailyEntry");
 const RecipeFood = require("../models/RecipeFood");
+const Recipe = require("../models/Recipe")
 
 // @desc Get all foods
 // @route GET /api/foods
@@ -113,21 +114,20 @@ const deleteFood = asyncHandler(async (req, res) => {
 const forceDeleteFood = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  // Find recipes associated with the food
-  const recipesUsingFood = await Recipe.findAll({
-    include: {
-      model: RecipeFood,
-      where: { food_id: id },
-    },
-  });
+  const recipesUsingFood = await RecipeFood.findAll({
+    where: {food_id: id}
+  })
 
-  // Delete the associated recipes
-  for (const recipe of recipesUsingFood) {
-    await recipe.destroy();
+  for(const recipe of recipesUsingFood) {
+    await DailyEntry.destroy({where: {recipe_id: recipe.recipe_id}})
+    await Recipe.destroy({where: {id: recipe.recipe_id}});
   }
 
   // Delete related daily entries
   await DailyEntry.destroy({ where: { food_id: id } });
+
+  // Detlete all recipeFood links
+  await RecipeFood.destroy({ where: { food_id: id } });
 
   // Delete the food
   const food = await Food.findByPk(id);
