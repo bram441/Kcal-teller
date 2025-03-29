@@ -1,5 +1,8 @@
 const asyncHandler = require("../utils/asyncHandler");
 const Food = require("../models/Food");
+const DailyEntry = require("../models/DailyEntry");
+const RecipeFood = require("../models/RecipeFood");
+const Recipe = require("../models/Recipe")
 
 // @desc Get all foods
 // @route GET /api/foods
@@ -71,6 +74,8 @@ const updateFood = asyncHandler(async (req, res) => {
 // @route DELETE /api/foods/:id
 const deleteFood = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Find the food
   const food = await Food.findByPk(id);
 
   if (!food) {
@@ -78,8 +83,60 @@ const deleteFood = asyncHandler(async (req, res) => {
     throw new Error("Food not found");
   }
 
+  // Check if the food is used in any recipes
+  const recipesUsingFood = await food.getRecipes({
+    attributes: ["id", "name"],
+    through: { attributes: ["quantity"] },
+  });
+
+  // Check if the food is used in any daily entries
+  const dailyEntriesUsingFood = await DailyEntry.findAll({
+    where: { food_id: id },
+    attributes: ["id", "date", "total_kcal"],
+  });
+
+  // If the food is being used, return the related data
+  if (recipesUsingFood.length > 0 || dailyEntriesUsingFood.length > 0) {
+    return res.status(200).json({
+      message: "Food is being used",
+      recipes: recipesUsingFood,
+      dailyEntries: dailyEntriesUsingFood,
+    });
+  }
+
+  // If not used, delete the food
   await food.destroy();
   res.json({ message: "Food deleted" });
 });
 
-module.exports = { getFoods, createFood, updateFood, deleteFood };
+// @desc Force delete food and related entries
+// @route DELETE /api/foods/:id/force
+const forceDeleteFood = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const recipesUsingFood = await RecipeFood.findAll({
+    where: {food_id: id}
+  })
+
+  for(const recipe of recipesUsingFood) {
+    await DailyEntry.destroy({where: {recipe_id: recipe.recipe_id}})
+    await Recipe.destroy({where: {id: recipe.recipe_id}});
+  }
+
+  // Delete related daily entries
+  await DailyEntry.destroy({ where: { food_id: id } });
+
+  // Detlete all recipeFood links
+  await RecipeFood.destroy({ where: { food_id: id } });
+
+  // Delete the food
+  const food = await Food.findByPk(id);
+  if (food) {
+    await food.destroy();
+  }
+
+  res.json({ message: "Food, related recipes, and daily entries deleted" });
+});
+
+module.exports = { getFoods, createFood, updateFood, deleteFood, forceDeleteFood };
+
