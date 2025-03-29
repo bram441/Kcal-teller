@@ -8,10 +8,11 @@ const { Op, Sequelize } = require("sequelize");
 // @route GET /api/daily-entries
 const getDailyEntries = asyncHandler(async (req, res) => {
   const user_id = req.user.id; // Extract user ID from token
+  const date = req.query.date || new Date();
 
   // Fetch daily entries and join with the food or recipe table to get the name
   const entries = await DailyEntry.findAll({
-    where: { user_id, date: new Date() },
+    where: { user_id, date },
     include: [
       {
         model: Food,
@@ -121,8 +122,9 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     total_proteins,
     total_fats,
     total_sugars,
-    amount,
+    amount, 
     entry_type,
+    date,
   } = req.body;
 
   const entry = await DailyEntry.create({
@@ -135,6 +137,7 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     total_sugars,
     amount,
     entry_type,
+    date: date || new Date(),
   });
   res.status(201).json(entry);
 });
