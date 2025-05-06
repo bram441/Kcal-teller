@@ -25,6 +25,7 @@ const extractNutritionInfo = async (req, res) => {
   try {
     const uploadResponse = await cloudinary.uploader.upload(image, {
       folder: "nutrition_images",
+      resource_type: "image", // Accepts both PNG and JPG
     });
 
     const publicImageUrl = uploadResponse.secure_url;
@@ -47,7 +48,7 @@ Verplicht indien beschikbaar:
 - kcal_per_100: kilocalorieën per 100g/ml
 - proteine_per_100: eiwitten per 100g/ml
 - fats_per_100: vetten per 100g/ml
-- sugar_per_100: suikers per 100g/ml
+- sugar_per_100: suikers per 100g/ml, meer specifiek gaat het over de koolhydraten in het totaal, niet enkel waarvan suikers
 
 Indien aanwezig op de afbeelding:
 - grams_per_portion: gewicht van een portie (bv. 150g)
@@ -80,7 +81,6 @@ Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uit
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      console.warn("Parsing fallback: trying to extract JSON manually");
       const match = raw.match(/{[\s\S]*}/);
       if (!match) {
         throw new Error("No JSON found in GPT response");
