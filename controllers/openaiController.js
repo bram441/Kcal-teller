@@ -1,5 +1,8 @@
 const OpenAI = require("openai");
+const pool = require("../config/db");
 const cloudinary = require("../utils/cloudinary");
+const { sequelize, Sequelize } = require("../config/db");
+const { QueryTypes } = require("sequelize");
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -111,4 +114,127 @@ Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uit
   }
 };
 
-module.exports = { extractNutritionInfo };
+const sanitizeMatch = (val) => {
+  if (!val) return 0;
+  const cleaned = val
+    .toString()
+    .replace(/[^\d,.-]/g, "")
+    .replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+const findClosestFoodMatch = async (name) => {
+  console.log("Finding closest food match for:", name);
+  try {
+    const rows = await sequelize.query(
+      `SELECT *, similarity(name, :name) AS sim
+       FROM "Food"
+       WHERE similarity(name, :name) > 0.3
+       ORDER BY sim DESC
+       LIMIT 3`,
+      {
+        replacements: { name },
+        type: QueryTypes.SELECT,
+      }
+    );
+    if (rows.length > 0 && rows[0].sim >= 0.6) {
+      return { match: rows[0], status: "matched" };
+    } else {
+      return { match: null, status: "no match" };
+    }
+  } catch (err) {
+    console.error("DB match error:", err);
+    return { match: null, status: "error" };
+  }
+};
+
+const analyzeIntake = async (req, res) => {
+  const { message } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required." });
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a calorie tracking assistant. The user will describe what they ate today in natural language, often in Dutch.
+
+Return an array of JSON objects. Each object should have:
+- name: name of the food
+- type: one of [ochtend, middag, avond, snack, drinken] (based on meal context or time)
+- portion_description: what was eaten (e.g. "1 boterham met kaas")
+- grams: estimated grams
+- kcal: estimated kilocalories
+- proteins: estimated grams of protein
+- fats: estimated grams of fat
+- sugar: estimated grams of sugar
+
+Always output only the array in JSON format. If values must be guessed, do so conservatively.`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      max_tokens: 1000,
+    });
+
+    const raw = response.choices[0].message.content;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      const match = raw.match(/\[.*\]/s);
+      if (!match) {
+        throw new Error("No JSON array found in GPT response");
+      }
+      parsed = JSON.parse(match[0]);
+    }
+
+    const enriched = await Promise.all(
+      parsed.map(async (item) => {
+        const { match, status } = await findClosestFoodMatch(item.name);
+        if (match) {
+          return {
+            input_name: item.name,
+            portion_description: match.portion_description || null,
+            grams: match.grams_per_portion || sanitizeMatch(item.grams),
+            kcal: match.kcal_per_portion || sanitizeMatch(item.kcal),
+            proteins: match.proteine_per_100 || sanitizeMatch(item.proteins),
+            fats: match.fats_per_100 || sanitizeMatch(item.fats),
+            sugar: match.sugar_per_100 || sanitizeMatch(item.sugar),
+            type: item.type || "onbekend",
+            match,
+            status,
+          };
+        } else {
+          return {
+            input_name: item.name,
+            portion_description: item.portion_description || null,
+            grams: sanitizeMatch(item.grams),
+            kcal: sanitizeMatch(item.kcal),
+            proteins: sanitizeMatch(item.proteins),
+            fats: sanitizeMatch(item.fats),
+            sugar: sanitizeMatch(item.sugar),
+            type: item.type || "onbekend",
+            match: null,
+            status,
+          };
+        }
+      })
+    );
+
+    res.json(enriched);
+  } catch (error) {
+    console.error("Failed to analyze food intake:", error);
+    res.status(500).json({ error: "Failed to analyze food intake." });
+  }
+};
+
+module.exports = { extractNutritionInfo, analyzeIntake };
