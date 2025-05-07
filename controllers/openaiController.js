@@ -114,38 +114,66 @@ Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uit
   }
 };
 
+const normalizeText = (text) => {
+  return text.toLowerCase().replace(/[-()]/g, "").replace(/\s+/g, " ").trim();
+};
+
 const sanitizeMatch = (val) => {
-  if (!val) return 0;
+  if (!val) return null;
   const cleaned = val
     .toString()
     .replace(/[^\d,.-]/g, "")
     .replace(",", ".");
   const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
+  return isNaN(num) ? null : num;
+};
+
+const extractQuantityAndName = (name) => {
+  const match = name.match(/^(\d+)\s+(.*)$/);
+  if (match) {
+    return {
+      quantity: parseInt(match[1]),
+      name: match[3].trim(),
+    };
+  }
+  return { quantity: 1, name };
 };
 
 const findClosestFoodMatch = async (name) => {
-  console.log("Finding closest food match for:", name);
+  const normalizedInput = normalizeText(name);
+
   try {
-    const rows = await sequelize.query(
-      `SELECT *, similarity(name, :name) AS sim
+    const candidates = await sequelize.query(
+      `SELECT *, similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) AS sim
        FROM "Food"
-       WHERE similarity(name, :name) > 0.3
+       WHERE similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) > 0.3
+          OR lower(name) LIKE '%' || :likeInput || '%'
        ORDER BY sim DESC
-       LIMIT 3`,
+       LIMIT 5`,
       {
-        replacements: { name },
-        type: QueryTypes.SELECT,
+        replacements: { normalizedInput, likeInput: normalizedInput },
+        type: sequelize.QueryTypes.SELECT,
       }
     );
-    if (rows.length > 0 && rows[0].sim >= 0.6) {
-      return { match: rows[0], status: "matched" };
-    } else {
-      return { match: null, status: "no match" };
+
+    if (!candidates || candidates.length === 0) {
+      return { match: null, candidates: [], status: "no match" };
     }
+
+    const strongMatches = candidates.filter((c) => c.sim >= 0.7);
+
+    if (strongMatches.length === 1) {
+      return { match: strongMatches[0], candidates: [], status: "matched" };
+    }
+
+    if (candidates.length === 1) {
+      return { match: candidates[0], candidates: [], status: "matched" };
+    }
+
+    return { match: null, candidates, status: "ambiguous_match" };
   } catch (err) {
     console.error("DB match error:", err);
-    return { match: null, status: "error" };
+    return { match: null, candidates: [], status: "error" };
   }
 };
 
@@ -168,7 +196,8 @@ Return an array of JSON objects. Each object should have:
 - name: name of the food
 - type: one of [ochtend, middag, avond, snack, drinken] (based on meal context or time)
 - portion_description: what was eaten (e.g. "1 boterham met kaas")
-- grams: estimated grams
+- grams: grams or mililiters of food/drinks (if not available don't estimate, set to null)
+- quantity: quantity of food (if not available, set to null), this could also be in the form of "1 portie", "1 stuk", "1 glas", "1 blikje", etc.
 - kcal: estimated kilocalories
 - proteins: estimated grams of protein
 - fats: estimated grams of fat
@@ -199,32 +228,59 @@ Always output only the array in JSON format. If values must be guessed, do so co
 
     const enriched = await Promise.all(
       parsed.map(async (item) => {
-        const { match, status } = await findClosestFoodMatch(item.name);
-        if (match) {
+        console.log("Item:", item);
+        const { quantity1, name } = extractQuantityAndName(item.name);
+        const { match, candidates, status } = await findClosestFoodMatch(name);
+
+        if (status === "matched") {
+          let grams = null;
+          if (item.quantity && match.grams_per_portion) {
+            grams = match.grams_per_portion * item.quantity;
+          } else if (item.grams != null) {
+            grams = sanitizeMatch(item.grams);
+          }
           return {
             input_name: item.name,
-            portion_description: match.portion_description || null,
-            grams: match.grams_per_portion || sanitizeMatch(item.grams),
-            kcal: match.kcal_per_portion || sanitizeMatch(item.kcal),
-            proteins: match.proteine_per_100 || sanitizeMatch(item.proteins),
-            fats: match.fats_per_100 || sanitizeMatch(item.fats),
-            sugar: match.sugar_per_100 || sanitizeMatch(item.sugar),
+            portion_description:
+              match.portion_description || item.portion_description || null,
+            grams: grams,
+            kcal: match.kcal_per_100,
+            proteins: match.proteine_per_100,
+            fats: match.fats_per_100,
+            sugar: match.sugar_per_100,
             type: item.type || "onbekend",
             match,
-            status,
+            candidates: [],
+            status: inferredGrams == null ? "missing_quantity" : "matched",
+          };
+        } else if (status === "ambiguous_match") {
+          return {
+            input_name: item.name,
+            portion_description: item.portion_description || null,
+            grams: sanitizeMatch(item.grams) || null,
+            quantity: sanitizeMatch(item.quantity) || null,
+            kcal: null,
+            proteins: null,
+            fats: null,
+            sugar: null,
+            type: item.type || "onbekend",
+            match: null,
+            candidates,
+            status: "ambiguous_match",
           };
         } else {
           return {
             input_name: item.name,
             portion_description: item.portion_description || null,
-            grams: sanitizeMatch(item.grams),
+            grams,
             kcal: sanitizeMatch(item.kcal),
             proteins: sanitizeMatch(item.proteins),
             fats: sanitizeMatch(item.fats),
             sugar: sanitizeMatch(item.sugar),
             type: item.type || "onbekend",
             match: null,
-            status,
+            candidates: [],
+            status: grams == null ? "missing_quantity" : "no match",
           };
         }
       })
@@ -236,5 +292,4 @@ Always output only the array in JSON format. If values must be guessed, do so co
     res.status(500).json({ error: "Failed to analyze food intake." });
   }
 };
-
 module.exports = { extractNutritionInfo, analyzeIntake };
