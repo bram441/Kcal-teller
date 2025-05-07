@@ -196,7 +196,7 @@ Return an array of JSON objects. Each object should have:
 - name: name of the food
 - type: one of [ochtend, middag, avond, snack, drinken] (based on meal context or time)
 - portion_description: what was eaten (e.g. "1 boterham met kaas")
-- grams: grams or mililiters of food/drinks (if not available don't estimate, set to null)
+- grams: grams or mililiters of food/drinks, if not mentioned don't estimate, set to null
 - quantity: quantity of food (if not available, set to null), this could also be in the form of "1 portie", "1 stuk", "1 glas", "1 blikje", etc.
 - kcal: estimated kilocalories
 - proteins: estimated grams of protein
@@ -234,11 +234,13 @@ Always output only the array in JSON format. If values must be guessed, do so co
 
         if (status === "matched") {
           let grams = null;
-          if (item.quantity && match.grams_per_portion) {
-            grams = match.grams_per_portion * item.quantity;
-          } else if (item.grams != null) {
+          const numericQuantity = sanitizeMatch(item.quantity);
+          if (item.grams != null) {
             grams = sanitizeMatch(item.grams);
+          } else if (numericQuantity && match.grams_per_portion) {
+            grams = match.grams_per_portion * numericQuantity;
           }
+
           return {
             input_name: item.name,
             portion_description:
@@ -251,7 +253,7 @@ Always output only the array in JSON format. If values must be guessed, do so co
             type: item.type || "onbekend",
             match,
             candidates: [],
-            status: inferredGrams == null ? "missing_quantity" : "matched",
+            status: grams == null ? "missing_quantity" : "matched",
           };
         } else if (status === "ambiguous_match") {
           return {
@@ -272,7 +274,7 @@ Always output only the array in JSON format. If values must be guessed, do so co
           return {
             input_name: item.name,
             portion_description: item.portion_description || null,
-            grams,
+            grams: null,
             kcal: sanitizeMatch(item.kcal),
             proteins: sanitizeMatch(item.proteins),
             fats: sanitizeMatch(item.fats),
@@ -280,7 +282,7 @@ Always output only the array in JSON format. If values must be guessed, do so co
             type: item.type || "onbekend",
             match: null,
             candidates: [],
-            status: grams == null ? "missing_quantity" : "no match",
+            status: "no match",
           };
         }
       })
