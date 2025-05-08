@@ -2,7 +2,6 @@ const OpenAI = require("openai");
 const pool = require("../config/db");
 const cloudinary = require("../utils/cloudinary");
 const { sequelize, Sequelize } = require("../config/db");
-const { QueryTypes } = require("sequelize");
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -193,11 +192,11 @@ const analyzeIntake = async (req, res) => {
           content: `You are a calorie tracking assistant. The user will describe what they ate today in natural language, often in Dutch.
 
 Return an array of JSON objects. Each object should have:
-- name: name of the food
+- name: name of the food, if it's plural, use the singular form (e.g. "appel" instead of "appels")
 - type: one of [ochtend, middag, avond, snack, drinken] (based on meal context or time)
 - portion_description: what was eaten (e.g. "1 boterham met kaas")
-- grams: grams or mililiters of food/drinks, if not mentioned don't estimate, set to null
-- quantity: quantity of food (if not available, set to null), this could also be in the form of "1 portie", "1 stuk", "1 glas", "1 blikje", etc.
+- grams: grams or milliliters of food/drinks, **only if explicitly mentioned in the input**. Do not infer or estimate grams from quantity. If grams are not mentioned, set this to null.
+- quantity: quantity of food (if not available, set to null), this could also be in the form of "1 portie", "1 stuk", "1 glas", "1 blikje", etc. Be aware of plural forms. For example, "appels" you can assume 2 apples. If the word is singular, you can assume 1 apple. If there a number is mentioned, use that number, for example "3 appels" is 3 apples. If the word is plural, but there is no number, set to null.
 - kcal: estimated kilocalories
 - proteins: estimated grams of protein
 - fats: estimated grams of fat
