@@ -1,5 +1,7 @@
 const OpenAI = require("openai");
+const pool = require("../config/db");
 const cloudinary = require("../utils/cloudinary");
+const { sequelize, Sequelize } = require("../config/db");
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -111,4 +113,184 @@ Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uit
   }
 };
 
-module.exports = { extractNutritionInfo };
+const normalizeText = (text) => {
+  return text.toLowerCase().replace(/[-()]/g, "").replace(/\s+/g, " ").trim();
+};
+
+const sanitizeMatch = (val) => {
+  if (!val) return null;
+  const cleaned = val
+    .toString()
+    .replace(/[^\d,.-]/g, "")
+    .replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+};
+
+const extractQuantityAndName = (name) => {
+  const match = name.match(/^(\d+)\s+(.*)$/);
+  if (match) {
+    return {
+      quantity: parseInt(match[1]),
+      name: match[3].trim(),
+    };
+  }
+  return { quantity: 1, name };
+};
+
+const findClosestFoodMatch = async (name) => {
+  const normalizedInput = normalizeText(name);
+
+  try {
+    const candidates = await sequelize.query(
+      `SELECT *, similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) AS sim
+       FROM "Food"
+       WHERE similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) > 0.3
+          OR lower(name) LIKE '%' || :likeInput || '%'
+       ORDER BY sim DESC
+       LIMIT 5`,
+      {
+        replacements: { normalizedInput, likeInput: normalizedInput },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (!candidates || candidates.length === 0) {
+      return { match: null, candidates: [], status: "no match" };
+    }
+
+    const strongMatches = candidates.filter((c) => c.sim >= 0.7);
+
+    if (strongMatches.length === 1) {
+      return { match: strongMatches[0], candidates: [], status: "matched" };
+    }
+
+    if (candidates.length === 1) {
+      return { match: candidates[0], candidates: [], status: "matched" };
+    }
+
+    return { match: null, candidates, status: "ambiguous_match" };
+  } catch (err) {
+    console.error("DB match error:", err);
+    return { match: null, candidates: [], status: "error" };
+  }
+};
+
+const analyzeIntake = async (req, res) => {
+  const { message } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required." });
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a calorie tracking assistant. The user will describe what they ate today in natural language, often in Dutch.
+
+Return an array of JSON objects. Each object should have:
+- name: name of the food, if it's plural, use the singular form (e.g. "appel" instead of "appels")
+- type: one of [ochtend, middag, avond, snack, drinken] (based on meal context or time)
+- portion_description: what was eaten (e.g. "1 boterham met kaas")
+- grams: grams or milliliters of food/drinks, **only if explicitly mentioned in the input**. Do not infer or estimate grams from quantity. If grams are not mentioned, set this to null.
+- quantity: quantity of food (if not available, set to null), this could also be in the form of "1 portie", "1 stuk", "1 glas", "1 blikje", etc. Be aware of plural forms. For example, "appels" you can assume 2 apples. If the word is singular, you can assume 1 apple. If there a number is mentioned, use that number, for example "3 appels" is 3 apples. If the word is plural, but there is no number, set to null.
+- kcal: estimated kilocalories
+- proteins: estimated grams of protein
+- fats: estimated grams of fat
+- sugar: estimated grams of sugar
+
+Always output only the array in JSON format. If values must be guessed, do so conservatively.`,
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+      max_tokens: 1000,
+    });
+
+    const raw = response.choices[0].message.content;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      const match = raw.match(/\[.*\]/s);
+      if (!match) {
+        throw new Error("No JSON array found in GPT response");
+      }
+      parsed = JSON.parse(match[0]);
+    }
+
+    const enriched = await Promise.all(
+      parsed.map(async (item) => {
+        console.log("Item:", item);
+        const { quantity1, name } = extractQuantityAndName(item.name);
+        const { match, candidates, status } = await findClosestFoodMatch(name);
+
+        if (status === "matched") {
+          let grams = null;
+          const numericQuantity = sanitizeMatch(item.quantity);
+          if (item.grams != null) {
+            grams = sanitizeMatch(item.grams);
+          } else if (numericQuantity && match.grams_per_portion) {
+            grams = match.grams_per_portion * numericQuantity;
+          }
+
+          return {
+            input_name: item.name,
+            portion_description:
+              match.portion_description || item.portion_description || null,
+            grams: grams,
+            kcal: match.kcal_per_100,
+            proteins: match.proteine_per_100,
+            fats: match.fats_per_100,
+            sugar: match.sugar_per_100,
+            type: item.type || "onbekend",
+            match,
+            candidates: [],
+            status: grams == null ? "missing_quantity" : "matched",
+          };
+        } else if (status === "ambiguous_match") {
+          return {
+            input_name: item.name,
+            portion_description: item.portion_description || null,
+            grams: sanitizeMatch(item.grams) || null,
+            quantity: sanitizeMatch(item.quantity) || null,
+            kcal: null,
+            proteins: null,
+            fats: null,
+            sugar: null,
+            type: item.type || "onbekend",
+            match: null,
+            candidates,
+            status: "ambiguous_match",
+          };
+        } else {
+          return {
+            input_name: item.name,
+            portion_description: item.portion_description || null,
+            grams: null,
+            kcal: sanitizeMatch(item.kcal),
+            proteins: sanitizeMatch(item.proteins),
+            fats: sanitizeMatch(item.fats),
+            sugar: sanitizeMatch(item.sugar),
+            type: item.type || "onbekend",
+            match: null,
+            candidates: [],
+            status: "no match",
+          };
+        }
+      })
+    );
+
+    res.json(enriched);
+  } catch (error) {
+    console.error("Failed to analyze food intake:", error);
+    res.status(500).json({ error: "Failed to analyze food intake." });
+  }
+};
+module.exports = { extractNutritionInfo, analyzeIntake };

@@ -59,7 +59,10 @@ const Food = sequelize.define(
       defaultValue: [],
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    freezeTableName: true, // Prevent Sequelize from pluralizing table name
+  }
 );
 
 module.exports = Food;
