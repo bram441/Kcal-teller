@@ -141,39 +141,70 @@ const extractQuantityAndName = (name) => {
 const findClosestFoodMatch = async (name) => {
   const normalizedInput = normalizeText(name);
 
-  try {
-    const candidates = await sequelize.query(
-      `SELECT *, similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) AS sim
-       FROM "Food"
-       WHERE similarity(lower(regexp_replace(name, '[^a-z0-9 ]', '', 'g')), :normalizedInput) > 0.3
-          OR lower(name) LIKE '%' || :likeInput || '%'
-       ORDER BY sim DESC
-       LIMIT 5`,
-      {
-        replacements: { normalizedInput, likeInput: normalizedInput },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    if (!candidates || candidates.length === 0) {
-      return { match: null, candidates: [], status: "no match" };
+  // 1. Exact match (case-insensitive)
+  const exactMatches = await sequelize.query(
+    `SELECT *, 1.0 AS sim FROM "Food"
+     WHERE lower(name) = :normalizedInput`,
+    {
+      replacements: { normalizedInput },
+      type: sequelize.QueryTypes.SELECT,
     }
+  );
 
-    const strongMatches = candidates.filter((c) => c.sim >= 0.7);
-
-    if (strongMatches.length === 1) {
-      return { match: strongMatches[0], candidates: [], status: "matched" };
+  // 2. Whole-word match (word boundary, case-insensitive)
+  const wordBoundaryMatches = await sequelize.query(
+    `SELECT *, 0.95 AS sim FROM "Food"
+     WHERE lower(name) ~* ('\\y' || :normalizedInput || '\\y')
+       AND lower(name) != :normalizedInput`,
+    {
+      replacements: { normalizedInput },
+      type: sequelize.QueryTypes.SELECT,
     }
+  );
 
-    if (candidates.length === 1) {
-      return { match: candidates[0], candidates: [], status: "matched" };
+  // 3. Similarity/fuzzy matches (excluding above)
+  const fuzzyMatches = await sequelize.query(
+    `SELECT *, similarity(lower(name), :normalizedInput) AS sim
+     FROM "Food"
+     WHERE lower(name) != :normalizedInput
+       AND lower(name) !~* ('\\y' || :normalizedInput || '\\y')
+       AND (similarity(lower(name), :normalizedInput) > 0.3
+            OR lower(name) LIKE '%' || :likeInput || '%')
+     ORDER BY sim DESC
+     LIMIT 5`,
+    {
+      replacements: { normalizedInput, likeInput: normalizedInput },
+      type: sequelize.QueryTypes.SELECT,
     }
+  );
 
-    return { match: null, candidates, status: "ambiguous_match" };
-  } catch (err) {
-    console.error("DB match error:", err);
-    return { match: null, candidates: [], status: "error" };
+  // Combine, removing duplicates by id
+  const allMatches = [...exactMatches, ...wordBoundaryMatches, ...fuzzyMatches];
+  const uniqueMatches = [];
+  const seenIds = new Set();
+  for (const match of allMatches) {
+    if (!seenIds.has(match.id)) {
+      uniqueMatches.push(match);
+      seenIds.add(match.id);
+    }
   }
+
+  if (uniqueMatches.length === 0) {
+    return { match: null, candidates: [], status: "no match" };
+  }
+
+  // Optionally, you can still filter for strong similarity matches as before
+  const strongMatches = uniqueMatches.filter((c) => c.sim >= 0.7);
+
+  if (strongMatches.length === 1) {
+    return { match: strongMatches[0], candidates: [], status: "matched" };
+  }
+
+  if (uniqueMatches.length === 1) {
+    return { match: uniqueMatches[0], candidates: [], status: "matched" };
+  }
+
+  return { match: null, candidates: uniqueMatches.slice(0, 5), status: "ambiguous_match" };
 };
 
 const analyzeIntake = async (req, res) => {
