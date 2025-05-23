@@ -51,16 +51,18 @@ Verplicht indien beschikbaar:
 - proteine_per_100: eiwitten per 100g/ml
 - fats_per_100: vetten per 100g/ml
 - sugar_per_100: suikers per 100g/ml, meer specifiek gaat het over de koolhydraten in het totaal, niet enkel waarvan suikers
+- main_category: de hoofdcategorie van het product ( "fruit","groenten","zuivel","vlees","vis","vegetarisch","drinken","brood & granen","maaltijd","smeersels & sauzen","soep","bijgerechten","snacks & zoetigheid","overig",)
+indien geen main_category kan worden gevonden, gebruik dan de naam van het product om de hoofdcategorie te bepalen. Als het product niet kan worden ingedeeld in een hoofdcategorie, gebruik dan "overig".
 
 Indien aanwezig op de afbeelding:
 - grams_per_portion: gewicht van een portie (bv. 150g)
 - kcal_per_portion: kcal per portie
 - portion_description: beschrijving van de portie (bv. "1 burger", "1 stuk", "1 verpakking")
 - brand: het merk van het product
-- tags: een lijst van maximaal 3 relevante categorieën (zoals "vlees", "vegetarisch", "drinken", "zuivel", "snack", "ontbijt")
+- tags: een lijst van maximaal 3 relevante categorieën
 
 Geef uitsluitend een JSON-terug met de volgende velden:
-product_name, brand, kcal_per_100, proteine_per_100, fats_per_100, sugar_per_100, grams_per_portion, kcal_per_portion, portion_description, tags
+product_name, brand, kcal_per_100, proteine_per_100, fats_per_100, sugar_per_100, grams_per_portion, kcal_per_portion, portion_description, tags, main_category
 
 Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uitleg of extra tekst.
               `,
@@ -104,6 +106,7 @@ Gebruik null voor elk veld dat niet op de afbeelding te vinden is. Geef geen uit
       tags: Array.isArray(parsed.tags)
         ? parsed.tags.map((t) => t.toLowerCase().trim()).slice(0, 3)
         : [],
+      main_category: parsed.main_category || null,
     };
 
     res.json(cleanData);

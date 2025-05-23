@@ -40,6 +40,7 @@ const createFood = asyncHandler(async (req, res) => {
     unit,
     portion_description,
     tags,
+    main_category,
   } = req.body;
   try {
       const existingFood = await Food.findOne({
@@ -71,6 +72,7 @@ const createFood = asyncHandler(async (req, res) => {
       unit,
       portion_description,
       tags: formattedTags, // ✅ Save correctly formatted tags
+      main_category,
     });
 
     res.status(201).json(newFood);
