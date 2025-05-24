@@ -3,12 +3,25 @@ const Food = require("../models/Food");
 const DailyEntry = require("../models/DailyEntry");
 const RecipeFood = require("../models/RecipeFood");
 const Recipe = require("../models/Recipe")
+const {sequelize} = require("../config/db");
+const { Op } = require("sequelize");
 
 // @desc Get all foods
 // @route GET /api/foods
 const getFoods = asyncHandler(async (req, res) => {
   const foods = await Food.findAll();
   res.json(foods);
+});
+
+const getUniqueBrands = asyncHandler(async (req, res) => {
+  const brands = await Food.findAll({
+    attributes: [
+      [sequelize.fn('DISTINCT', sequelize.col('brand')), 'brand']
+    ],
+    where: { brand: { [Op.ne]: null } },
+    order: [['brand', 'ASC']]
+  });
+  res.json(brands.map(b => b.brand));
 });
 
 // @desc Create a food item
@@ -27,8 +40,21 @@ const createFood = asyncHandler(async (req, res) => {
     unit,
     portion_description,
     tags,
+    main_category,
   } = req.body;
   try {
+      const existingFood = await Food.findOne({
+      where: { name: sequelize.where(
+        sequelize.fn('LOWER', sequelize.col('name')),
+        'LIKE',
+        name.toLowerCase()
+      ) }
+    });
+
+    if (existingFood) {
+      return res.status(409).json({ message: "Food already exists in the database." });
+    }
+
     const formattedTags = Array.isArray(tags)
       ? tags.map((tag) => tag.trim())
       : []; // ✅ Ensure it's an array
@@ -46,6 +72,7 @@ const createFood = asyncHandler(async (req, res) => {
       unit,
       portion_description,
       tags: formattedTags, // ✅ Save correctly formatted tags
+      main_category,
     });
 
     res.status(201).json(newFood);
@@ -138,5 +165,5 @@ const forceDeleteFood = asyncHandler(async (req, res) => {
   res.json({ message: "Food, related recipes, and daily entries deleted" });
 });
 
-module.exports = { getFoods, createFood, updateFood, deleteFood, forceDeleteFood };
+module.exports = { getFoods,getUniqueBrands, createFood, updateFood, deleteFood, forceDeleteFood };
 

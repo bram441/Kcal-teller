@@ -43,6 +43,7 @@ const Food = sequelize.define(
     },
     brand: {
       type: DataTypes.STRING,
+      defaultValue: "Geen", // Default to null if not provided
     },
     unit: {
       type: DataTypes.ENUM("gr", "ml"), // New field: Measurement unit
@@ -57,6 +58,25 @@ const Food = sequelize.define(
       type: DataTypes.ARRAY(DataTypes.STRING), // New field: Tags for filtering
       allowNull: true,
       defaultValue: [],
+    },
+    main_category: {
+      type: DataTypes.ENUM(
+        "fruit",
+        "groenten",
+        "zuivel",
+        "vlees",
+        "vis",
+        "vegetarisch",
+        "drinken",
+        "brood & granen",
+        "maaltijd",
+        "smeersels & sauzen",
+        "soep",
+        "bijgerechten",
+        "snacks & zoetigheid",
+        "overig",
+      ),
+      allowNull: true,
     },
   },
   {
