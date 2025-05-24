@@ -43,6 +43,7 @@ const Food = sequelize.define(
     },
     brand: {
       type: DataTypes.STRING,
+      defaultValue: "Geen", // Default to null if not provided
     },
     unit: {
       type: DataTypes.ENUM("gr", "ml"), // New field: Measurement unit
