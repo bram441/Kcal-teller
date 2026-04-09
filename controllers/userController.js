@@ -7,6 +7,20 @@ const nodemailer = require("nodemailer");
 const { Op } = require("sequelize");
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+const getFrontendBaseUrl = () => {
+  const configuredUrl =
+    process.env.RESET_PASSWORD_FRONTEND_URL || process.env.FRONTEND_URL;
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:3000";
+  }
+
+  return null;
+};
 
 // @desc Register new user
 // @route POST /api/users/register
@@ -109,7 +123,14 @@ const forgotPassword = asyncHandler(async (req, res) => {
   await user.save();
 
   // Send the reset email
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+  const frontendBaseUrl = getFrontendBaseUrl();
+  if (!frontendBaseUrl) {
+    res.status(500);
+    throw new Error(
+      "Reset password URL is not configured. Set RESET_PASSWORD_FRONTEND_URL or FRONTEND_URL."
+    );
+  }
+  const resetUrl = `${frontendBaseUrl}/reset-password/${resetToken}`;
   const transporter = nodemailer.createTransport({
     service: "Gmail",
     auth: {
@@ -155,11 +176,19 @@ const forgotPassword = asyncHandler(async (req, res) => {
 // @route POST /api/users/reset-password/:token
 const resetPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
-  const { password } = req.body;
+  const { password, confirmPassword } = req.body;
 
   if (!password || String(password).length < MIN_PASSWORD_LENGTH) {
     res.status(400);
     throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+
+  if (
+    confirmPassword !== undefined &&
+    String(password) !== String(confirmPassword)
+  ) {
+    res.status(400);
+    throw new Error("Passwords do not match");
   }
 
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
