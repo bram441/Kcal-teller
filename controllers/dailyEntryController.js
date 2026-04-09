@@ -127,6 +127,52 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     date,
   } = req.body;
 
+  let normalizedEntryType = entry_type;
+  if (!normalizedEntryType) {
+    if (food_id && !recipe_id) {
+      normalizedEntryType = "food";
+    } else if (recipe_id && !food_id) {
+      normalizedEntryType = "recipe";
+    }
+  }
+
+  if (!normalizedEntryType || !["food", "recipe"].includes(normalizedEntryType)) {
+    res.status(400);
+    throw new Error(
+      "entry_type must be either 'food' or 'recipe', or inferable from food_id/recipe_id"
+    );
+  }
+
+  if ((food_id && recipe_id) || (!food_id && !recipe_id)) {
+    res.status(400);
+    throw new Error("Exactly one of food_id or recipe_id must be provided");
+  }
+
+  if (normalizedEntryType === "food" && !food_id) {
+    res.status(400);
+    throw new Error("food_id is required for food entries");
+  }
+
+  if (normalizedEntryType === "recipe" && !recipe_id) {
+    res.status(400);
+    throw new Error("recipe_id is required for recipe entries");
+  }
+
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    res.status(400);
+    throw new Error("amount must be a positive number");
+  }
+
+  const nutritionValues = [total_kcal, total_proteins, total_fats, total_sugars]
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => Number(value));
+
+  if (nutritionValues.some((value) => !Number.isFinite(value) || value < 0)) {
+    res.status(400);
+    throw new Error("Nutrition values must be valid numbers greater than or equal to 0");
+  }
+
   const entry = await DailyEntry.create({
     user_id,
     food_id,
@@ -135,8 +181,8 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     total_proteins,
     total_fats,
     total_sugars,
-    amount,
-    entry_type,
+    amount: parsedAmount,
+    entry_type: normalizedEntryType,
     date: date || new Date(),
   });
   res.status(201).json(entry);

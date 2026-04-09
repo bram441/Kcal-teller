@@ -5,6 +5,21 @@ const RecipeFood = require("../models/RecipeFood");
 const Recipe = require("../models/Recipe")
 const {sequelize} = require("../config/db");
 const { Op } = require("sequelize");
+const ALLOWED_FOOD_UPDATE_FIELDS = [
+  "name",
+  "type",
+  "kcal_per_100",
+  "kcal_per_portion",
+  "grams_per_portion",
+  "proteine_per_100",
+  "fats_per_100",
+  "sugar_per_100",
+  "brand",
+  "unit",
+  "portion_description",
+  "tags",
+  "main_category",
+];
 
 // @desc Get all foods
 // @route GET /api/foods
@@ -42,6 +57,18 @@ const createFood = asyncHandler(async (req, res) => {
     tags,
     main_category,
   } = req.body;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ message: "Food name is required." });
+  }
+
+  if (!type || !unit) {
+    return res.status(400).json({ message: "Food type and unit are required." });
+  }
+
+  if ([kcal_per_100, kcal_per_portion].some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+    return res.status(400).json({ message: "Calories must be valid numbers >= 0." });
+  }
+
   try {
       const existingFood = await Food.findOne({
       where: { name: sequelize.where(
@@ -93,7 +120,13 @@ const updateFood = asyncHandler(async (req, res) => {
     throw new Error("Food not found");
   }
 
-  const updatedFood = await food.update(req.body);
+  const payload = Object.fromEntries(
+    Object.entries(req.body || {}).filter(([key]) =>
+      ALLOWED_FOOD_UPDATE_FIELDS.includes(key)
+    )
+  );
+
+  const updatedFood = await food.update(payload);
   res.json(updatedFood);
 });
 
