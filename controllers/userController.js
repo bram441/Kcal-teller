@@ -5,13 +5,31 @@ const User = require("../models/User");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const { Op } = require("sequelize");
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
 
 // @desc Register new user
 // @route POST /api/users/register
 const registerUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
-  const userExists = await User.findOne({ where: { email } });
+  if (!username || typeof username !== "string" || username.trim().length < 3) {
+    res.status(400);
+    throw new Error("Username must be at least 3 characters");
+  }
+
+  if (!email || !emailRegex.test(String(email).toLowerCase())) {
+    res.status(400);
+    throw new Error("A valid email is required");
+  }
+
+  if (!password || String(password).length < MIN_PASSWORD_LENGTH) {
+    res.status(400);
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const userExists = await User.findOne({ where: { email: normalizedEmail } });
   if (userExists) {
     res.status(400);
     throw new Error("User already exists");
@@ -21,8 +39,8 @@ const registerUser = asyncHandler(async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, salt);
 
   const user = await User.create({
-    username,
-    email,
+    username: username.trim(),
+    email: normalizedEmail,
     password_hash: hashedPassword,
   });
 
@@ -34,7 +52,13 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ where: { email } });
+  if (!email || !password) {
+    res.status(400);
+    throw new Error("Email and password are required");
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const user = await User.findOne({ where: { email: normalizedEmail } });
   if (user && (await bcrypt.compare(password, user.password_hash))) {
     res.json({
       id: user.id,
@@ -59,10 +83,17 @@ const loginUser = asyncHandler(async (req, res) => {
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
-  const user = await User.findOne({ where: { email } });
+  if (!email || !emailRegex.test(String(email).toLowerCase())) {
+    res.status(400);
+    throw new Error("A valid email is required");
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const user = await User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
-    res.status(404);
-    throw new Error("User not found");
+    return res.json({
+      message: "If an account exists, a password reset email has been sent",
+    });
   }
 
   // Generate a reset token
@@ -117,7 +148,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   await transporter.sendMail(mailOptions);
 
-  res.json({ message: "Password reset email sent" });
+  res.json({ message: "If an account exists, a password reset email has been sent" });
 });
 
 // @desc Reset password
@@ -125,6 +156,11 @@ const forgotPassword = asyncHandler(async (req, res) => {
 const resetPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
+
+  if (!password || String(password).length < MIN_PASSWORD_LENGTH) {
+    res.status(400);
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
 
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
@@ -164,11 +200,35 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   const { username, email, password, kcal_goal } = req.body;
 
   // Update fields if provided
-  if (username) user.username = username;
-  if (email) user.email = email;
-  if (kcal_goal) user.kcal_goal = kcal_goal;
+  if (username !== undefined) {
+    if (typeof username !== "string" || username.trim().length < 3) {
+      res.status(400);
+      throw new Error("Username must be at least 3 characters");
+    }
+    user.username = username.trim();
+  }
+  if (email !== undefined) {
+    const normalizedEmail = String(email).toLowerCase().trim();
+    if (!emailRegex.test(normalizedEmail)) {
+      res.status(400);
+      throw new Error("A valid email is required");
+    }
+    user.email = normalizedEmail;
+  }
+  if (kcal_goal !== undefined) {
+    const parsedGoal = Number(kcal_goal);
+    if (!Number.isFinite(parsedGoal) || parsedGoal <= 0) {
+      res.status(400);
+      throw new Error("kcal_goal must be a positive number");
+    }
+    user.kcal_goal = parsedGoal;
+  }
 
   if (password) {
+    if (String(password).length < MIN_PASSWORD_LENGTH) {
+      res.status(400);
+      throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
     const salt = await bcrypt.genSalt(10);
     user.password_hash = await bcrypt.hash(password, salt);
   }
