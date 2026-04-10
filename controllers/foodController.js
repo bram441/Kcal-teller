@@ -43,15 +43,16 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
   const offset = (parsedPage - 1) * parsedLimit;
 
   const where = {};
+  const andConditions = [];
 
   const trimmedQuery = String(q).trim();
   if (trimmedQuery) {
     const words = trimmedQuery.split(/\s+/).filter(Boolean);
-    where[Op.and] = words.map((word) => ({
+    andConditions.push(...words.map((word) => ({
       name: {
         [Op.iLike]: `%${word}%`,
       },
-    }));
+    })));
   }
 
   if (brand) {
@@ -64,9 +65,16 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
 
   const trimmedTag = String(tag).trim();
   if (trimmedTag) {
-    where.tags = {
-      [Op.overlap]: [trimmedTag],
-    };
+    const escapedTag = trimmedTag.replace(/'/g, "''");
+    andConditions.push(
+      sequelize.literal(
+        `EXISTS (SELECT 1 FROM unnest("Food"."tags") AS tag WHERE tag ILIKE '%${escapedTag}%')`
+      )
+    );
+  }
+
+  if (andConditions.length > 0) {
+    where[Op.and] = andConditions;
   }
 
   const { count, rows } = await Food.findAndCountAll({
