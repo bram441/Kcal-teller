@@ -209,6 +209,41 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
   res.json(weeklyData);
 });
 
+const updateDailyEntry = asyncHandler(async (req, res) => {
+  const user_id = req.user.id;
+  const { id } = req.params;
+  const { amount } = req.body;
+
+  const entry = await DailyEntry.findOne({ where: { user_id, id } });
+  if (!entry) {
+    res.status(404);
+    throw new Error("Daily entry not found");
+  }
+
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    res.status(400);
+    throw new Error("amount must be a positive number");
+  }
+
+  const oldAmount = Number(entry.amount);
+  if (!Number.isFinite(oldAmount) || oldAmount <= 0) {
+    res.status(500);
+    throw new Error("Existing daily entry amount is invalid");
+  }
+
+  const ratio = parsedAmount / oldAmount;
+
+  entry.amount = parsedAmount;
+  entry.total_kcal = Number(entry.total_kcal) * ratio;
+  entry.total_proteins = Number(entry.total_proteins || 0) * ratio;
+  entry.total_fats = Number(entry.total_fats || 0) * ratio;
+  entry.total_sugars = Number(entry.total_sugars || 0) * ratio;
+
+  await entry.save();
+  res.json(entry);
+});
+
 const removeDailyEntry = asyncHandler(async (req, res) => {
   const user_id = req.user.id;
   const { id } = req.params;
@@ -224,5 +259,6 @@ module.exports = {
   getDailyEntries,
   logDailyEntry,
   getWeeklyEntries,
+  updateDailyEntry,
   removeDailyEntry,
 };
