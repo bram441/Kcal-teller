@@ -28,6 +28,77 @@ const getFoods = asyncHandler(async (req, res) => {
   res.json(foods);
 });
 
+const getFoodsSearch = asyncHandler(async (req, res) => {
+  const {
+    q = "",
+    brand = "",
+    category = "",
+    tag = "",
+    page = "1",
+    limit = "25",
+  } = req.query;
+
+  const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+  const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+  const offset = (parsedPage - 1) * parsedLimit;
+
+  const where = {};
+  const andConditions = [];
+
+  const trimmedQuery = String(q).trim();
+  if (trimmedQuery) {
+    const words = trimmedQuery.split(/\s+/).filter(Boolean);
+    andConditions.push(...words.map((word) => ({
+      name: {
+        [Op.iLike]: `%${word}%`,
+      },
+    })));
+  }
+
+  if (brand) {
+    where.brand = String(brand).trim();
+  }
+
+  if (category) {
+    where.main_category = String(category).trim();
+  }
+
+  const trimmedTag = String(tag).trim();
+  if (trimmedTag) {
+    const escapedTag = trimmedTag.replace(/'/g, "''");
+    andConditions.push(
+      sequelize.literal(
+        `EXISTS (SELECT 1 FROM unnest("Food"."tags") AS tag WHERE tag ILIKE '%${escapedTag}%')`
+      )
+    );
+  }
+
+  if (andConditions.length > 0) {
+    where[Op.and] = andConditions;
+  }
+
+  const { count, rows } = await Food.findAndCountAll({
+    where,
+    order: [
+      ["name", "ASC"],
+      ["id", "ASC"],
+    ],
+    limit: parsedLimit,
+    offset,
+  });
+
+  res.json({
+    items: rows,
+    pagination: {
+      page: parsedPage,
+      limit: parsedLimit,
+      totalItems: count,
+      totalPages: Math.max(Math.ceil(count / parsedLimit), 1),
+      hasNextPage: offset + rows.length < count,
+    },
+  });
+});
+
 const getUniqueBrands = asyncHandler(async (req, res) => {
   const brands = await Food.findAll({
     attributes: [
@@ -198,5 +269,13 @@ const forceDeleteFood = asyncHandler(async (req, res) => {
   res.json({ message: "Food, related recipes, and daily entries deleted" });
 });
 
-module.exports = { getFoods,getUniqueBrands, createFood, updateFood, deleteFood, forceDeleteFood };
+module.exports = {
+  getFoods,
+  getFoodsSearch,
+  getUniqueBrands,
+  createFood,
+  updateFood,
+  deleteFood,
+  forceDeleteFood,
+};
 

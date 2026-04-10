@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   getFoods,
+  getFoodsSearch,
   getUniqueBrands,
   createFood,
   updateFood,
@@ -11,6 +12,7 @@ const { protect, admin } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 router.get("/", protect, getFoods);
+router.get("/search", protect, getFoodsSearch);
 router.get("/brands", protect, getUniqueBrands); // Get unique brands
 router.post("/", protect, admin, createFood);
 router.put("/:id", protect, admin, updateFood); // Update food
