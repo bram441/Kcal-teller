@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getFoods,
   getFoodsSearch,
+  toggleFavoriteFood,
   getUniqueBrands,
   createFood,
   updateFood,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.get("/", protect, getFoods);
 router.get("/search", protect, getFoodsSearch);
 router.get("/brands", protect, getUniqueBrands); // Get unique brands
+router.post("/:id/favorite", protect, toggleFavoriteFood);
 router.post("/", protect, admin, createFood);
 router.put("/:id", protect, admin, updateFood); // Update food
 router.delete("/:id", protect, admin, deleteFood); // Delete food

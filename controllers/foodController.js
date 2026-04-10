@@ -3,6 +3,8 @@ const Food = require("../models/Food");
 const DailyEntry = require("../models/DailyEntry");
 const RecipeFood = require("../models/RecipeFood");
 const Recipe = require("../models/Recipe")
+const UserFavoriteFood = require("../models/UserFavoriteFood");
+const UserFrequentFood = require("../models/UserFrequentFood");
 const {sequelize} = require("../config/db");
 const { Op } = require("sequelize");
 const ALLOWED_FOOD_UPDATE_FIELDS = [
@@ -36,7 +38,9 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     tag = "",
     page = "1",
     limit = "25",
+    sort_mode = "name",
   } = req.query;
+  const userId = req.user.id;
 
   const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
   const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
@@ -79,12 +83,58 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
 
   const { count, rows } = await Food.findAndCountAll({
     where,
+    include: [
+      {
+        model: UserFavoriteFood,
+        as: "favoriteUsers",
+        attributes: [],
+        where: { user_id: userId },
+        required: false,
+      },
+      {
+        model: UserFrequentFood,
+        as: "frequentUsers",
+        attributes: [],
+        where: { user_id: userId },
+        required: false,
+      },
+    ],
+    attributes: {
+      include: [
+        [
+          sequelize.literal(
+            `CASE WHEN "favoriteUsers"."id" IS NULL THEN false ELSE true END`
+          ),
+          "is_favorite",
+        ],
+        [
+          sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`),
+          "selection_count",
+        ],
+      ],
+    },
     order: [
+      ...(sort_mode === "favorites"
+        ? [
+            [sequelize.literal(`CASE WHEN "favoriteUsers"."id" IS NULL THEN 0 ELSE 1 END`), "DESC"],
+            [sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`), "DESC"],
+          ]
+        : []),
+      ...(sort_mode === "frequent"
+        ? [
+            [sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`), "DESC"],
+            [sequelize.literal(`CASE WHEN "favoriteUsers"."id" IS NULL THEN 0 ELSE 1 END`), "DESC"],
+          ]
+        : []),
+      ...(sort_mode === "recent"
+        ? [[sequelize.literal(`COALESCE("frequentUsers"."last_selected_at", "Food"."createdAt")`), "DESC"]]
+        : []),
       ["name", "ASC"],
       ["id", "ASC"],
     ],
     limit: parsedLimit,
     offset,
+    distinct: true,
   });
 
   res.json({
@@ -97,6 +147,38 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
       hasNextPage: offset + rows.length < count,
     },
   });
+});
+
+const toggleFavoriteFood = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const foodId = Number(req.params.id);
+  const { is_favorite } = req.body;
+
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    res.status(400);
+    throw new Error("Invalid food id");
+  }
+
+  const food = await Food.findByPk(foodId);
+  if (!food) {
+    res.status(404);
+    throw new Error("Food not found");
+  }
+
+  if (is_favorite) {
+    await UserFavoriteFood.findOrCreate({
+      where: { user_id: userId, food_id: foodId },
+      defaults: { user_id: userId, food_id: foodId },
+    });
+  } else {
+    await UserFavoriteFood.destroy({ where: { user_id: userId, food_id: foodId } });
+  }
+
+  const favorite = await UserFavoriteFood.findOne({
+    where: { user_id: userId, food_id: foodId },
+  });
+
+  res.json({ food_id: foodId, is_favorite: Boolean(favorite) });
 });
 
 const getUniqueBrands = asyncHandler(async (req, res) => {
@@ -272,6 +354,7 @@ const forceDeleteFood = asyncHandler(async (req, res) => {
 module.exports = {
   getFoods,
   getFoodsSearch,
+  toggleFavoriteFood,
   getUniqueBrands,
   createFood,
   updateFood,
