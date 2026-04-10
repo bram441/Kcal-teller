@@ -81,28 +81,39 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     where[Op.and] = andConditions;
   }
 
+  const favoriteInclude = {
+    model: UserFavoriteFood,
+    as: "favoriteUsers",
+    attributes: ["id"],
+    where: { user_id: userId },
+    required: sort_mode === "favorites",
+  };
+
+  const frequentInclude = {
+    model: UserFrequentFood,
+    as: "frequentUsers",
+    attributes: ["selection_count", "last_selected_at"],
+    where: { user_id: userId },
+    required: false,
+  };
+
+  const order = [];
+  if (sort_mode === "frequent") {
+    order.push(
+      [{ model: UserFrequentFood, as: "frequentUsers" }, "selection_count", "DESC"]
+    );
+  }
+  if (sort_mode === "recent") {
+    order.push(
+      [{ model: UserFrequentFood, as: "frequentUsers" }, "last_selected_at", "DESC"]
+    );
+  }
+  order.push(["name", "ASC"], ["id", "ASC"]);
+
   const { count, rows } = await Food.findAndCountAll({
     where,
-    include: [
-      {
-        model: UserFavoriteFood,
-        as: "favoriteUsers",
-        attributes: ["id"],
-        where: { user_id: userId },
-        required: false,
-      },
-      {
-        model: UserFrequentFood,
-        as: "frequentUsers",
-        attributes: ["selection_count", "last_selected_at"],
-        where: { user_id: userId },
-        required: false,
-      },
-    ],
-    order: [
-      ["name", "ASC"],
-      ["id", "ASC"],
-    ],
+    include: [favoriteInclude, frequentInclude],
+    order,
     limit: parsedLimit,
     offset,
     distinct: true,
@@ -122,27 +133,6 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
       last_selected_at: frequent?.last_selected_at || null,
     };
   });
-
-  if (sort_mode === "favorites") {
-    mappedItems.sort((a, b) => {
-      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-      if (a.selection_count !== b.selection_count) return b.selection_count - a.selection_count;
-      return a.name.localeCompare(b.name);
-    });
-  } else if (sort_mode === "frequent") {
-    mappedItems.sort((a, b) => {
-      if (a.selection_count !== b.selection_count) return b.selection_count - a.selection_count;
-      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-  } else if (sort_mode === "recent") {
-    mappedItems.sort((a, b) => {
-      const aTs = a.last_selected_at ? new Date(a.last_selected_at).getTime() : 0;
-      const bTs = b.last_selected_at ? new Date(b.last_selected_at).getTime() : 0;
-      if (aTs !== bTs) return bTs - aTs;
-      return a.name.localeCompare(b.name);
-    });
-  }
 
   res.json({
     items: mappedItems,
