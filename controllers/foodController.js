@@ -87,48 +87,19 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
       {
         model: UserFavoriteFood,
         as: "favoriteUsers",
-        attributes: [],
+        attributes: ["id"],
         where: { user_id: userId },
         required: false,
       },
       {
         model: UserFrequentFood,
         as: "frequentUsers",
-        attributes: [],
+        attributes: ["selection_count", "last_selected_at"],
         where: { user_id: userId },
         required: false,
       },
     ],
-    attributes: {
-      include: [
-        [
-          sequelize.literal(
-            `CASE WHEN "favoriteUsers"."id" IS NULL THEN false ELSE true END`
-          ),
-          "is_favorite",
-        ],
-        [
-          sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`),
-          "selection_count",
-        ],
-      ],
-    },
     order: [
-      ...(sort_mode === "favorites"
-        ? [
-            [sequelize.literal(`CASE WHEN "favoriteUsers"."id" IS NULL THEN 0 ELSE 1 END`), "DESC"],
-            [sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`), "DESC"],
-          ]
-        : []),
-      ...(sort_mode === "frequent"
-        ? [
-            [sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`), "DESC"],
-            [sequelize.literal(`CASE WHEN "favoriteUsers"."id" IS NULL THEN 0 ELSE 1 END`), "DESC"],
-          ]
-        : []),
-      ...(sort_mode === "recent"
-        ? [[sequelize.literal(`COALESCE("frequentUsers"."last_selected_at", "Food"."createdAt")`), "DESC"]]
-        : []),
       ["name", "ASC"],
       ["id", "ASC"],
     ],
@@ -137,8 +108,44 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     distinct: true,
   });
 
+  const mappedItems = rows.map((row) => {
+    const plain = row.toJSON();
+    const favorite = Array.isArray(plain.favoriteUsers) && plain.favoriteUsers.length > 0;
+    const frequent = Array.isArray(plain.frequentUsers) && plain.frequentUsers.length > 0
+      ? plain.frequentUsers[0]
+      : null;
+
+    return {
+      ...plain,
+      is_favorite: favorite,
+      selection_count: frequent?.selection_count || 0,
+      last_selected_at: frequent?.last_selected_at || null,
+    };
+  });
+
+  if (sort_mode === "favorites") {
+    mappedItems.sort((a, b) => {
+      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+      if (a.selection_count !== b.selection_count) return b.selection_count - a.selection_count;
+      return a.name.localeCompare(b.name);
+    });
+  } else if (sort_mode === "frequent") {
+    mappedItems.sort((a, b) => {
+      if (a.selection_count !== b.selection_count) return b.selection_count - a.selection_count;
+      if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  } else if (sort_mode === "recent") {
+    mappedItems.sort((a, b) => {
+      const aTs = a.last_selected_at ? new Date(a.last_selected_at).getTime() : 0;
+      const bTs = b.last_selected_at ? new Date(b.last_selected_at).getTime() : 0;
+      if (aTs !== bTs) return bTs - aTs;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
   res.json({
-    items: rows,
+    items: mappedItems,
     pagination: {
       page: parsedPage,
       limit: parsedLimit,
