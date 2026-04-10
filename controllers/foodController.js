@@ -99,14 +99,18 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
 
   const order = [];
   if (sort_mode === "frequent") {
-    order.push(
-      [{ model: UserFrequentFood, as: "frequentUsers" }, "selection_count", "DESC"]
-    );
+    order.push([
+      sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`),
+      "DESC",
+    ]);
   }
   if (sort_mode === "recent") {
-    order.push(
-      [{ model: UserFrequentFood, as: "frequentUsers" }, "last_selected_at", "DESC"]
-    );
+    order.push([
+      sequelize.literal(
+        `COALESCE("frequentUsers"."last_selected_at", to_timestamp(0))`
+      ),
+      "DESC",
+    ]);
   }
   order.push(["name", "ASC"], ["id", "ASC"]);
 
@@ -117,6 +121,7 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     limit: parsedLimit,
     offset,
     distinct: true,
+    subQuery: false,
   });
 
   const mappedItems = rows.map((row) => {
