@@ -3,6 +3,8 @@ const Food = require("../models/Food");
 const DailyEntry = require("../models/DailyEntry");
 const RecipeFood = require("../models/RecipeFood");
 const Recipe = require("../models/Recipe")
+const UserFavoriteFood = require("../models/UserFavoriteFood");
+const UserFrequentFood = require("../models/UserFrequentFood");
 const {sequelize} = require("../config/db");
 const { Op } = require("sequelize");
 const ALLOWED_FOOD_UPDATE_FIELDS = [
@@ -36,7 +38,9 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     tag = "",
     page = "1",
     limit = "25",
+    sort_mode = "name",
   } = req.query;
+  const userId = req.user.id;
 
   const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
   const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
@@ -77,18 +81,66 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
     where[Op.and] = andConditions;
   }
 
+  const favoriteInclude = {
+    model: UserFavoriteFood,
+    as: "favoriteUsers",
+    attributes: ["id"],
+    where: { user_id: userId },
+    required: sort_mode === "favorites",
+  };
+
+  const frequentInclude = {
+    model: UserFrequentFood,
+    as: "frequentUsers",
+    attributes: ["selection_count", "last_selected_at"],
+    where: { user_id: userId },
+    required: false,
+  };
+
+  const order = [];
+  if (sort_mode === "frequent") {
+    order.push([
+      sequelize.literal(`COALESCE("frequentUsers"."selection_count", 0)`),
+      "DESC",
+    ]);
+  }
+  if (sort_mode === "recent") {
+    order.push([
+      sequelize.literal(
+        `COALESCE("frequentUsers"."last_selected_at", to_timestamp(0))`
+      ),
+      "DESC",
+    ]);
+  }
+  order.push(["name", "ASC"], ["id", "ASC"]);
+
   const { count, rows } = await Food.findAndCountAll({
     where,
-    order: [
-      ["name", "ASC"],
-      ["id", "ASC"],
-    ],
+    include: [favoriteInclude, frequentInclude],
+    order,
     limit: parsedLimit,
     offset,
+    distinct: true,
+    subQuery: false,
+  });
+
+  const mappedItems = rows.map((row) => {
+    const plain = row.toJSON();
+    const favorite = Array.isArray(plain.favoriteUsers) && plain.favoriteUsers.length > 0;
+    const frequent = Array.isArray(plain.frequentUsers) && plain.frequentUsers.length > 0
+      ? plain.frequentUsers[0]
+      : null;
+
+    return {
+      ...plain,
+      is_favorite: favorite,
+      selection_count: frequent?.selection_count || 0,
+      last_selected_at: frequent?.last_selected_at || null,
+    };
   });
 
   res.json({
-    items: rows,
+    items: mappedItems,
     pagination: {
       page: parsedPage,
       limit: parsedLimit,
@@ -97,6 +149,38 @@ const getFoodsSearch = asyncHandler(async (req, res) => {
       hasNextPage: offset + rows.length < count,
     },
   });
+});
+
+const toggleFavoriteFood = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const foodId = Number(req.params.id);
+  const { is_favorite } = req.body;
+
+  if (!Number.isInteger(foodId) || foodId <= 0) {
+    res.status(400);
+    throw new Error("Invalid food id");
+  }
+
+  const food = await Food.findByPk(foodId);
+  if (!food) {
+    res.status(404);
+    throw new Error("Food not found");
+  }
+
+  if (is_favorite) {
+    await UserFavoriteFood.findOrCreate({
+      where: { user_id: userId, food_id: foodId },
+      defaults: { user_id: userId, food_id: foodId },
+    });
+  } else {
+    await UserFavoriteFood.destroy({ where: { user_id: userId, food_id: foodId } });
+  }
+
+  const favorite = await UserFavoriteFood.findOne({
+    where: { user_id: userId, food_id: foodId },
+  });
+
+  res.json({ food_id: foodId, is_favorite: Boolean(favorite) });
 });
 
 const getUniqueBrands = asyncHandler(async (req, res) => {
@@ -272,6 +356,7 @@ const forceDeleteFood = asyncHandler(async (req, res) => {
 module.exports = {
   getFoods,
   getFoodsSearch,
+  toggleFavoriteFood,
   getUniqueBrands,
   createFood,
   updateFood,

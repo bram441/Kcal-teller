@@ -2,6 +2,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const DailyEntry = require("../models/DailyEntry");
 const Food = require("../models/Food");
 const Recipe = require("../models/Recipe");
+const UserFrequentFood = require("../models/UserFrequentFood");
 const { Op, Sequelize } = require("sequelize");
 
 // @desc Get daily calorie intake for user
@@ -185,6 +186,25 @@ const logDailyEntry = asyncHandler(async (req, res) => {
     entry_type: normalizedEntryType,
     date: date || new Date(),
   });
+
+  if (normalizedEntryType === "food" && food_id) {
+    const [frequentFood, created] = await UserFrequentFood.findOrCreate({
+      where: { user_id, food_id },
+      defaults: {
+        user_id,
+        food_id,
+        selection_count: 1,
+        last_selected_at: new Date(),
+      },
+    });
+
+    if (!created) {
+      frequentFood.selection_count += 1;
+      frequentFood.last_selected_at = new Date();
+      await frequentFood.save();
+    }
+  }
+
   res.status(201).json(entry);
 });
 

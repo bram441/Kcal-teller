@@ -4,6 +4,8 @@ const Food = require("./Food");
 const DailyEntry = require("./DailyEntry");
 const Recipe = require("./Recipe");
 const RecipeFood = require("./RecipeFood");
+const UserFavoriteFood = require("./UserFavoriteFood");
+const UserFrequentFood = require("./UserFrequentFood");
 
 // Define Associations
 User.hasMany(DailyEntry, { foreignKey: "user_id" });
@@ -26,4 +28,23 @@ Food.belongsToMany(Recipe, {
   foreignKey: "food_id",
 });
 
-module.exports = { sequelize, User, Food, DailyEntry, Recipe, RecipeFood };
+User.hasMany(UserFavoriteFood, { foreignKey: "user_id", as: "favoriteFoods" });
+Food.hasMany(UserFavoriteFood, { foreignKey: "food_id", as: "favoriteUsers" });
+UserFavoriteFood.belongsTo(User, { foreignKey: "user_id" });
+UserFavoriteFood.belongsTo(Food, { foreignKey: "food_id" });
+
+User.hasMany(UserFrequentFood, { foreignKey: "user_id", as: "frequentFoods" });
+Food.hasMany(UserFrequentFood, { foreignKey: "food_id", as: "frequentUsers" });
+UserFrequentFood.belongsTo(User, { foreignKey: "user_id" });
+UserFrequentFood.belongsTo(Food, { foreignKey: "food_id" });
+
+module.exports = {
+  sequelize,
+  User,
+  Food,
+  DailyEntry,
+  Recipe,
+  RecipeFood,
+  UserFavoriteFood,
+  UserFrequentFood,
+};
